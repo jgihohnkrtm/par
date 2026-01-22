@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8" />
+<title>Eco Poliz Ekinlari Simulator</title>
+<style>
+body{margin:0;font-family:'Segoe UI',Arial;background:#2f6b3f;color:#fff;overflow:hidden}
+header{padding:14px;text-align:center;font-size:26px;background:rgba(0,0,0,.35)}
+#game{display:flex;height:calc(100vh - 60px)}
+#left,#right{flex:1;padding:14px}
+.panel{background:rgba(0,0,0,.4);border-radius:16px;padding:12px;margin-bottom:12px}
+button{padding:8px 14px;border:none;border-radius:18px;background:linear-gradient(#6adf9b,#2e8b57);color:#fff;font-weight:600;cursor:pointer}
+button:hover{filter:brightness(1.1)}
+#soil{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.cell{height:110px;background:linear-gradient(#6b3e1e,#4b2a13);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:36px;cursor:pointer;position:relative}
+.stage{animation:grow .6s ease}
+@keyframes grow{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+#shop{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center; z-index:9999}
+#shopBox{width:440px;background:#1e3f2b;border-radius:18px;padding:16px;max-height:80vh;overflow:auto}
+.shopItem{display:flex;justify-content:space-between;align-items:center;margin:8px 0;background:rgba(255,255,255,.08);padding:8px;border-radius:12px}
+.progress{height:10px;background:#333;border-radius:8px;overflow:hidden}
+.progress div{height:100%;background:linear-gradient(#ffd86a,#ff9f1a)}
+ul{list-style:none;padding:0;margin:0}
+li{padding:4px 0;cursor:pointer}
+li:hover{opacity:.8}
+</style>
+</head>
+<body>
+<header>🌾 Eco Poliz Ekinlari Simulator</header>
+<div id="game">
+<div id="left">
+<div class="panel">
+<h3>🧠 Savol</h3>
+<div id="task"></div>
+<p id="taskResult"></p>
+</div>
+<div class="panel">
+<h3>🎒 Inventar</h3>
+<ul id="inventory"></ul>
+</div>
+<div class="panel">
+<h3>📊 Progress</h3>
+<p>Level: <span id="level">1</span></p>
+<div class="progress"><div id="xpBar" style="width:0%"></div></div>
+<p>💰 Pul: <span id="money">0</span></p>
+<button id="shopBtn">🛒 Magazin</button>
+</div>
+</div>
+<div id="right">
+<div class="panel">
+<h3>🌱 133-IDUM Issiqxona</h3>
+<div id="soil"></div>
+</div>
+</div>
+</div>
+
+<div id="shop">
+<div id="shopBox">
+<h3>🛒 Magazin</h3>
+<div id="shopItems"></div>
+<button id="closeShop">Yopish</button>
+</div>
+</div>
+
+<script>
+'use strict';
+
+/* ===== DOM ===== */
+const soilEl = document.getElementById('soil');
+const taskEl = document.getElementById('task');
+const taskResultEl = document.getElementById('taskResult');
+const moneyEl = document.getElementById('money');
+const levelEl = document.getElementById('level');
+const xpBar = document.getElementById('xpBar');
+const shopEl = document.getElementById('shop');
+const shopItemsEl = document.getElementById('shopItems');
+const inventoryEl = document.getElementById('inventory');
+
+document.getElementById('shopBtn').addEventListener('click',openShop);
+document.getElementById('closeShop').addEventListener('click',closeShop);
+
+/* ===== STATE ===== */
+let money = 0;
+let level = 1;
+let xp = 0;
+let selectedSeed = null;
+let inventory = [];
+let ownedBackgrounds = ['default'];
+
+/* ===== SEEDS (15) ===== */
+const seeds = [
+ {name:'Sabzi', stages:['🌰','🌱','🥕'], water:3, profit:20, price:150},
+ {name:'Qovoq', stages:['🌰','🌿','🎃'], water:4, profit:30, price:150},
+ {name:'Kartoshka', stages:['🌰','🌱','🥔'], water:3, profit:25, price:150},
+ {name:'Qulupnay', stages:['🌰','🌿','🍓'], water:4, profit:35, price:200},
+ {name:'Makkajo‘xori', stages:['🌰','🌱','🌽'], water:5, profit:40, price:200},
+ {name:'Pomidor', stages:['🌰','🌱','🍅'], water:3, profit:28, price:150},
+ {name:'Bodring', stages:['🌰','🌿','🥒'], water:3, profit:26, price:200},
+ {name:'Baqlajon', stages:['🌰','🌱','🍆'], water:4, profit:34, price:200},
+ {name:'Qalampir', stages:['🌰','🌱','🫑'], water:3, profit:30, price:150},
+ {name:'Piyoz', stages:['🌰','🌱','🧅'], water:2, profit:18, price:100},
+ {name:'Sarimsoq', stages:['🌰','🌱','🧄'], water:2, profit:22, price:100},
+ {name:'Tarvuz', stages:['🌰','🌿','🍉'], water:5, profit:60, price:250},
+ {name:'Qovun', stages:['🌰','🌿','🍈'], water:5, profit:55, price:250},
+ {name:'Golden Sabzi', stages:['🌰','🌱','🥕'], water:2, profit:60, price:300},
+ {name:'Diamond Qovoq', stages:['🌰','🌿','🎃'], water:3, profit:80, price:350}
+];
+
+
+/* ===== SOIL ===== */
+const cells = [];
+function initSoil(){
+ soilEl.innerHTML='';
+ for(let i=0;i<12;i++){
+  cells[i]={seed:null,water:0};
+  const c=document.createElement('div');
+  c.className='cell';
+  c.addEventListener('click',()=>interact(i,c));
+  soilEl.appendChild(c);
+ }
+}
+
+function interact(i,c){
+ const d=cells[i];
+//  if(!d.seed){
+//   if(!selectedSeed) return;
+
+if(!d.seed){
+ if(!selectedSeed) return;
+
+ d.seed = JSON.parse(JSON.stringify(selectedSeed));
+ d.water = 0;
+
+ inventory.splice(selectedSeed._invIndex,1);
+ selectedSeed = null;
+
+ draw(c,d);
+ updateUI();
+ return;
+
+  d.seed=JSON.parse(JSON.stringify(selectedSeed));
+  d.water=0;
+  selectedSeed=null;
+  draw(c,d);
+  updateUI();
+  return;
+ }
+ d.water++;
+ draw(c,d);
+ if(d.water>=d.seed.water){
+  money+=d.seed.profit;
+  addXP(20);
+  cells[i]={seed:null,water:0};
+  setTimeout(()=>c.innerHTML='',300);
+ }
+ updateUI();
+}
+
+function draw(c,d){
+ const stage=Math.min(d.water,d.seed.stages.length-1);
+ c.innerHTML='<span class="stage">'+d.seed.stages[stage]+'</span>';
+}
+
+/* ===== XP ===== */
+function addXP(v){
+ xp+=v;
+ const need=level*100;
+ if(xp>=need){xp-=need;level++;}
+ xpBar.style.width=(xp/(level*100)*100)+'%';
+ levelEl.textContent=level;
+}
+
+function updateUI(){
+ moneyEl.textContent=money;
+ inventoryEl.innerHTML=inventory.map((s,i)=>'<li data-i="'+i+'">🌱 '+s.name+'</li>').join('');
+ [...inventoryEl.children].forEach(li=>{
+  li.addEventListener('click',()=>selectFromInv(+li.dataset.i));
+ });
+}
+
+// function selectFromInv(i){
+//  selectedSeed=inventory.splice(i,1)[0];
+//  updateUI();
+// }
+
+function selectFromInv(i){
+ if(selectedSeed){
+  alert("⚠️ Avval tanlangan urug‘ni eking!");
+  return;
+ }
+ selectedSeed = inventory[i];
+ selectedSeed._invIndex = i; 
+}
+
+
+/* ===== QUESTIONS (30) ===== */
+const questions=[
+ {q:'5 × 6 = ?',a:'30'},{q:'7 × 8 = ?',a:'56'},{q:'9 × 9 = ?',a:'81'},
+ {q:'12 + 18 = ?',a:'30'},{q:'45 - 17 = ?',a:'28'},
+ {q:'Plastik necha yilda yo‘qoladi?',a:'100'},
+ {q:'Qaysi energiya qayta tiklanadi?',a:'quyosh'},
+ {q:'Daraxtlar nimani yutadi?',a:'co2'},
+ {q:'8 × 7 = ?',a:'56'},{q:'6 × 9 = ?',a:'54'},
+ {q:'20 + 35 = ?',a:'55'},{q:'100 - 47 = ?',a:'53'},
+ {q:'3 × 12 = ?',a:'36'},{q:'11 × 11 = ?',a:'121'},
+ {q:'15 + 27 = ?',a:'42'},{q:'50 - 19 = ?',a:'31'},
+ {q:'4 × 14 = ?',a:'56'},{q:'9 × 6 = ?',a:'54'},
+ {q:'70 - 28 = ?',a:'42'},{q:'8 × 12 = ?',a:'96'},
+ {q:'6 × 11 = ?',a:'66'},{q:'90 - 33 = ?',a:'57'},
+ {q:'Suvni tejash kerakmi?',a:'ha'},
+ {q:'Chiqindi ajratish foydalimi?',a:'ha'},
+ {q:'Ekologiya nimani o‘rganadi?',a:'tabiat'},
+ {q:'Qog‘oz qayerdan olinadi?',a:'daraxt'},
+ {q:'Organik chiqindi nima?',a:'oziq'},
+ {q:'Energiya tejash muhimmi?',a:'ha'},
+ {q:'Suvsiz o‘simlik yashaydimi?',a:'yoq'}
+];
+
+function newTask(){
+ const t=questions[Math.floor(Math.random()*questions.length)];
+ taskEl.innerHTML=t.q+'<br><input id="ans"><button id="okBtn">OK</button>';
+ document.getElementById('okBtn').addEventListener('click',()=>check(t.a));
+}
+
+function check(a){
+ const input=document.getElementById('ans');
+ if(!input) return;
+ const v=input.value.toLowerCase().trim();
+ if(v===a){
+  const seed=JSON.parse(JSON.stringify(seeds[Math.floor(Math.random()*seeds.length)]));
+  inventory.push(seed);
+  taskResultEl.textContent='🌱 Urug‘ olding: '+seed.name;
+  updateUI();
+ } else taskResultEl.textContent='❌ Noto‘g‘ri javob';
+ newTask();
+}
+
+/* ===== SHOP ===== */
+function openShop(){
+ shopEl.style.display='flex';
+ shopItemsEl.innerHTML='<h4>🌱 Urug‘lar</h4>';
+ seeds.forEach(s=>{
+  const d=document.createElement('div');
+  d.className='shopItem';
+  d.innerHTML='<span>'+s.name+'</span>';
+  const b=document.createElement('button');
+  b.textContent = s.price + ' 💰';  
+  b.addEventListener('click',()=>buySeed(s));
+  d.appendChild(b);
+  shopItemsEl.appendChild(d);
+ });
+const h = document.createElement('h4');
+h.textContent = '🎨 Fonlar';
+shopItemsEl.appendChild(h);
+ const backgrounds=[
+  {id:'forest',name:'O‘rmon',price:3000,color:'#245c3a'},
+  {id:'sunset',name:'Quyosh botishi',price:4000,color:'#6b3e2e'},
+  {id:'night',name:'Tun',price:5000,color:'#1b1f3b'}
+ ];
+ backgrounds.forEach(bg=>{
+  const d=document.createElement('div');
+  d.className='shopItem';
+  d.innerHTML='<span>'+bg.name+'</span>';
+  const b=document.createElement('button');
+  const owned=ownedBackgrounds.includes(bg.id);
+  b.textContent=owned?'Sotib olingan':bg.price+' 💰';
+  b.disabled=owned;
+  b.addEventListener('click',()=>buyBackground(bg));
+  d.appendChild(b);
+  shopItemsEl.appendChild(d);
+ });
+}
+
+function closeShop(){shopEl.style.display='none';}
+
+// function buySeed(s){
+//  if(money<10) return alert('Pul yetarli emas');
+//  money-=10;
+//  inventory.push(JSON.parse(JSON.stringify(s)));
+//  updateUI();
+// }
+function buySeed(s){
+ if(money < s.price) return alert('Pul yetarli emas');
+ money -= s.price;
+ inventory.push(JSON.parse(JSON.stringify(s)));
+ updateUI();
+}
+
+
+function buyBackground(bg){
+ if(money<bg.price) return alert('Pul yetarli emas');
+ money-=bg.price;
+ ownedBackgrounds.push(bg.id);
+ document.body.style.background=bg.color;
+ openShop();
+ updateUI();
+}
+
+/* ===== START ===== */
+initSoil();
+updateUI();
+newTask();
+</script>
+</body>
+</html>
