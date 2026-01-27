@@ -84,7 +84,7 @@ li:hover{opacity:.8}
 </div>
 
 <div id="toolbar">
-<button id="useHoe">🪓 Belkurak</button><span id="hoeCount">0</span>
+<button id="useHoe">🪏 Belkurak</button><span id="hoeCount">0</span>
 <button id="useFertilizer">🧪 O‘g‘it</button><span id="fertCount">0</span>
 </div>
 
@@ -220,7 +220,7 @@ setInterval(()=>{
    }
  });
  [...soilEl.children].forEach((el,i)=>draw(el,cells[i]));
-},5000);
+},60000);
 
 /* ===== XP ===== */
 function addXP(v){
@@ -314,7 +314,7 @@ function openShop(){
 const h2 = document.createElement('h4');
 h2.textContent='🛠 Vositalar';
 shopItemsEl.appendChild(h2);
-[ {name:'🪓 Belkurak',type:'hoe',price:10},{name:'🧪 O‘g‘it',type:'fertilizer',price:20}].forEach(t=>{
+[ {name:'🪏 Belkurak',type:'hoe',price:10},{name:'🧪 O‘g‘it',type:'fertilizer',price:20}].forEach(t=>{
  const d=document.createElement('div');
  d.className='shopItem';
  d.innerHTML='<span>'+t.name+'</span>';
@@ -403,6 +403,7 @@ newTask();
 </script>
 </body>
 </html>
+
 
 
 
