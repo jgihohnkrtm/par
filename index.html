@@ -6,13 +6,31 @@
 <style>
 body{margin:0;font-family:'Segoe UI',Arial;background:#2f6b3f;color:#fff;overflow:hidden}
 header{padding:14px;text-align:center;font-size:26px;background:rgba(0,0,0,.35)}
-#game{display:flex;height:calc(100vh - 60px)}
-#left,#right{flex:1;padding:14px}
+#game{display:flex;flex-direction:column;height:100vh}
+#mainContent{display:flex;flex:1;overflow:auto}
+#left,#right{flex:1;padding:14px;box-sizing:border-box}
 .panel{background:rgba(0,0,0,.4);border-radius:16px;padding:12px;margin-bottom:12px}
 button{padding:8px 14px;border:none;border-radius:18px;background:linear-gradient(#6adf9b,#2e8b57);color:#fff;font-weight:600;cursor:pointer}
 button:hover{filter:brightness(1.1)}
-#soil{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.cell{height:110px;background:linear-gradient(#6b3e1e,#4b2a13);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:36px;cursor:pointer;position:relative}
+#soil {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 ta ustun */
+  grid-template-rows: repeat(3, 120px); /* 3 ta satr va kattaroq cell */
+  gap: 12px;
+}
+.cell {
+  height: 100%; /* satr balandligiga moslashadi */
+  background: linear-gradient(#6b3e1e,#4b2a13);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  cursor: pointer;
+  position: relative;
+  transition: background 30.0s;
+}
+
 .stage{animation:grow .6s ease}
 @keyframes grow{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
 #shop{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center; z-index:9999}
@@ -23,11 +41,13 @@ button:hover{filter:brightness(1.1)}
 ul{list-style:none;padding:0;margin:0}
 li{padding:4px 0;cursor:pointer}
 li:hover{opacity:.8}
+#toolbar{position:fixed;bottom:12px;right:12px;background:rgba(0,0,0,0.5);padding:8px;border-radius:12px;display:flex;align-items:center;gap:8px;z-index:999}
+#toolbar span{font-weight:bold;margin-left:4px}
 </style>
 </head>
 <body>
 <header>🌾 Eco Poliz Ekinlari Simulator</header>
-<div id="game">
+<div id="mainContent">
 <div id="left">
 <div class="panel">
 <h3>🧠 Savol</h3>
@@ -62,6 +82,11 @@ li:hover{opacity:.8}
 </div>
 </div>
 
+<div id="toolbar">
+<button id="useHoe">🪓 Belkurak</button><span id="hoeCount">0</span>
+<button id="useFertilizer">🧪 O‘g‘it</button><span id="fertCount">0</span>
+</div>
+
 <script>
 'use strict';
 
@@ -75,6 +100,10 @@ const xpBar = document.getElementById('xpBar');
 const shopEl = document.getElementById('shop');
 const shopItemsEl = document.getElementById('shopItems');
 const inventoryEl = document.getElementById('inventory');
+const useHoeBtn = document.getElementById('useHoe');
+const useFertilizerBtn = document.getElementById('useFertilizer');
+const hoeCountEl = document.getElementById('hoeCount');
+const fertCountEl = document.getElementById('fertCount');
 
 document.getElementById('shopBtn').addEventListener('click',openShop);
 document.getElementById('closeShop').addEventListener('click',closeShop);
@@ -86,33 +115,33 @@ let xp = 0;
 let selectedSeed = null;
 let inventory = [];
 let ownedBackgrounds = ['default'];
+let tools = {hoe:0, fertilizer:0};
 
-/* ===== SEEDS (15) ===== */
+/* ===== SEEDS ===== */
 const seeds = [
- {name:'Sabzi', stages:['🌰','🌱','🥕'], water:3, profit:20, price:150},
- {name:'Qovoq', stages:['🌰','🌿','🎃'], water:4, profit:30, price:150},
- {name:'Kartoshka', stages:['🌰','🌱','🥔'], water:3, profit:25, price:150},
- {name:'Qulupnay', stages:['🌰','🌿','🍓'], water:4, profit:35, price:200},
- {name:'Makkajo‘xori', stages:['🌰','🌱','🌽'], water:5, profit:40, price:200},
- {name:'Pomidor', stages:['🌰','🌱','🍅'], water:3, profit:28, price:150},
- {name:'Bodring', stages:['🌰','🌿','🥒'], water:3, profit:26, price:200},
- {name:'Baqlajon', stages:['🌰','🌱','🍆'], water:4, profit:34, price:200},
- {name:'Qalampir', stages:['🌰','🌱','🫑'], water:3, profit:30, price:150},
- {name:'Piyoz', stages:['🌰','🌱','🧅'], water:2, profit:18, price:100},
- {name:'Sarimsoq', stages:['🌰','🌱','🧄'], water:2, profit:22, price:100},
- {name:'Tarvuz', stages:['🌰','🌿','🍉'], water:5, profit:60, price:250},
- {name:'Qovun', stages:['🌰','🌿','🍈'], water:5, profit:55, price:250},
- {name:'Golden Sabzi', stages:['🌰','🌱','🥕'], water:2, profit:60, price:300},
- {name:'Diamond Qovoq', stages:['🌰','🌿','🎃'], water:3, profit:80, price:350}
+ {name:'Sabzi', stages:['🌰','🌱','🥕'], water:3, profit:20, price:5},
+ {name:'Qovoq', stages:['🌰','🌿','🎃'], water:4, profit:30, price:8},
+ {name:'Kartoshka', stages:['🌰','🌱','🥔'], water:3, profit:25, price:6},
+ {name:'Qulupnay', stages:['🌰','🌿','🍓'], water:4, profit:35, price:10},
+ {name:'Makkajo‘xori', stages:['🌰','🌱','🌽'], water:5, profit:40, price:12},
+ {name:'Pomidor', stages:['🌰','🌱','🍅'], water:3, profit:28, price:7},
+ {name:'Bodring', stages:['🌰','🌿','🥒'], water:3, profit:26, price:6},
+ {name:'Baqlajon', stages:['🌰','🌱','🍆'], water:4, profit:34, price:9},
+ {name:'Qalampir', stages:['🌰','🌱','🫑'], water:3, profit:30, price:8},
+ {name:'Piyoz', stages:['🌰','🌱','🧅'], water:2, profit:18, price:4},
+ {name:'Sarimsoq', stages:['🌰','🌱','🧄'], water:2, profit:22, price:5},
+ {name:'Tarvuz', stages:['🌰','🌿','🍉'], water:5, profit:60, price:15},
+ {name:'Qovun', stages:['🌰','🌿','🍈'], water:5, profit:55, price:14},
+ {name:'Golden Sabzi', stages:['🌰','🌱','🥕'], water:2, profit:60, price:20},
+ {name:'Diamond Qovoq', stages:['🌰','🌿','🎃'], water:3, profit:80, price:25}
 ];
-
 
 /* ===== SOIL ===== */
 const cells = [];
 function initSoil(){
  soilEl.innerHTML='';
  for(let i=0;i<12;i++){
-  cells[i]={seed:null,water:0};
+  cells[i]={seed:null,water:0,alive:true};
   const c=document.createElement('div');
   c.className='cell';
   c.addEventListener('click',()=>interact(i,c));
@@ -120,46 +149,77 @@ function initSoil(){
  }
 }
 
+/* ===== O‘SIMLIK INTERAKSIYASI ===== */
 function interact(i,c){
  const d=cells[i];
-//  if(!d.seed){
-//   if(!selectedSeed) return;
-
-if(!d.seed){
- if(!selectedSeed) return;
-
- d.seed = JSON.parse(JSON.stringify(selectedSeed));
- d.water = 0;
-
- inventory.splice(selectedSeed._invIndex,1);
- selectedSeed = null;
-
- draw(c,d);
- updateUI();
- return;
-
-  d.seed=JSON.parse(JSON.stringify(selectedSeed));
-  d.water=0;
-  selectedSeed=null;
-  draw(c,d);
-  updateUI();
-  return;
+ if(!d.seed){
+   if(!selectedSeed) return;
+   d.seed = JSON.parse(JSON.stringify(selectedSeed));
+   d.water = 0;
+   d.alive = true;
+   inventory.splice(selectedSeed._invIndex,1);
+   selectedSeed = null;
+   draw(c,d);
+   updateUI();
+   return;
  }
- d.water++;
+
+ // Agar o‘g‘it ishlatilsa
+ if(selectedSeed && selectedSeed.effect==='fertilize'){
+   if(d.seed && d.alive){
+     d.water = d.seed.water;
+     draw(c,d);
+     tools.fertilizer--;
+     updateToolbar();
+     selectedSeed=null;
+   }
+   return;
+ }
+
+ // Agar belkurak ishlatilsa
+ if(selectedSeed && selectedSeed.effect==='hoe'){
+   if(d.seed){
+     d.seed=null;
+     d.water=0;
+     d.alive=true;
+     draw(c,d);
+     tools.hoe--;
+     updateToolbar();
+     selectedSeed=null;
+   }
+   return;
+ }
+
+ // Oddiy sug‘orish
+ if(d.alive) d.water++;
  draw(c,d);
  if(d.water>=d.seed.water){
   money+=d.seed.profit;
   addXP(20);
-  cells[i]={seed:null,water:0};
+  cells[i]={seed:null,water:0,alive:true};
   setTimeout(()=>c.innerHTML='',300);
  }
  updateUI();
 }
 
+/* ===== DRAW ===== */
 function draw(c,d){
+ if(!d.seed) {c.innerHTML=''; c.style.background='linear-gradient(#6b3e1e,#4b2a13)'; return;}
+ if(!d.alive) {c.innerHTML='☠️'; return;}
  const stage=Math.min(d.water,d.seed.stages.length-1);
  c.innerHTML='<span class="stage">'+d.seed.stages[stage]+'</span>';
 }
+
+/* ===== TIME UPDATE ===== */
+setInterval(()=>{
+ cells.forEach(c=>{
+   if(c.seed && c.alive){
+     c.water--;
+     if(c.water<0) c.alive=false;
+   }
+ });
+ [...soilEl.children].forEach((el,i)=>draw(el,cells[i]));
+},5000);
 
 /* ===== XP ===== */
 function addXP(v){
@@ -170,30 +230,32 @@ function addXP(v){
  levelEl.textContent=level;
 }
 
+/* ===== UI ===== */
 function updateUI(){
  moneyEl.textContent=money;
- inventoryEl.innerHTML=inventory.map((s,i)=>'<li data-i="'+i+'">🌱 '+s.name+'</li>').join('');
- [...inventoryEl.children].forEach(li=>{
-  li.addEventListener('click',()=>selectFromInv(+li.dataset.i));
+ inventoryEl.innerHTML='';
+ inventory.forEach((s,i)=>{
+   const li = document.createElement('li');
+   li.textContent=s.stages?'🌱 '+s.name:s.name;
+   li.dataset.i=i;
+   li.addEventListener('click',()=>selectFromInv(i));
+   inventoryEl.appendChild(li);
  });
+ updateToolbar();
 }
-
-// function selectFromInv(i){
-//  selectedSeed=inventory.splice(i,1)[0];
-//  updateUI();
-// }
 
 function selectFromInv(i){
- if(selectedSeed){
-  alert("⚠️ Avval tanlangan urug‘ni eking!");
-  return;
- }
- selectedSeed = inventory[i];
- selectedSeed._invIndex = i; 
+ if(selectedSeed){alert("⚠️ Avval tanlangan elementni ishlating!"); return;}
+ selectedSeed=inventory[i];
+ selectedSeed._invIndex=i;
 }
 
+function updateToolbar(){
+ hoeCountEl.textContent = tools.hoe;
+ fertCountEl.textContent = tools.fertilizer;
+}
 
-/* ===== QUESTIONS (30) ===== */
+/* ===== QUESTIONS ===== */
 const questions=[
  {q:'5 × 6 = ?',a:'30'},{q:'7 × 8 = ?',a:'56'},{q:'9 × 9 = ?',a:'81'},
  {q:'12 + 18 = ?',a:'30'},{q:'45 - 17 = ?',a:'28'},
@@ -221,7 +283,6 @@ function newTask(){
  taskEl.innerHTML=t.q+'<br><input id="ans"><button id="okBtn">OK</button>';
  document.getElementById('okBtn').addEventListener('click',()=>check(t.a));
 }
-
 function check(a){
  const input=document.getElementById('ans');
  if(!input) return;
@@ -244,57 +305,95 @@ function openShop(){
   d.className='shopItem';
   d.innerHTML='<span>'+s.name+'</span>';
   const b=document.createElement('button');
-  b.textContent = s.price + ' 💰';  
+  b.textContent=s.price+' 💰';
   b.addEventListener('click',()=>buySeed(s));
   d.appendChild(b);
   shopItemsEl.appendChild(d);
  });
-const h = document.createElement('h4');
-h.textContent = '🎨 Fonlar';
-shopItemsEl.appendChild(h);
- const backgrounds=[
+const h2 = document.createElement('h4');
+h2.textContent='🛠 Vositalar';
+shopItemsEl.appendChild(h2);
+[ {name:'🪓 Belkurak',type:'hoe',price:10},{name:'🧪 O‘g‘it',type:'fertilizer',price:20}].forEach(t=>{
+ const d=document.createElement('div');
+ d.className='shopItem';
+ d.innerHTML='<span>'+t.name+'</span>';
+ const b=document.createElement('button');
+ b.textContent=t.price+' 💰';
+ b.addEventListener('click',()=>buyTool(t));
+ d.appendChild(b);
+ shopItemsEl.appendChild(d);
+});
+
+const h3 = document.createElement('h4');
+h3.textContent='🎨 Fonlar';
+shopItemsEl.appendChild(h3);
+const backgrounds=[
   {id:'forest',name:'O‘rmon',price:3000,color:'#245c3a'},
   {id:'sunset',name:'Quyosh botishi',price:4000,color:'#6b3e2e'},
   {id:'night',name:'Tun',price:5000,color:'#1b1f3b'}
- ];
- backgrounds.forEach(bg=>{
-  const d=document.createElement('div');
-  d.className='shopItem';
-  d.innerHTML='<span>'+bg.name+'</span>';
-  const b=document.createElement('button');
-  const owned=ownedBackgrounds.includes(bg.id);
-  b.textContent=owned?'Sotib olingan':bg.price+' 💰';
-  b.disabled=owned;
-  b.addEventListener('click',()=>buyBackground(bg));
-  d.appendChild(b);
-  shopItemsEl.appendChild(d);
- });
+];
+backgrounds.forEach(bg=>{
+ const d=document.createElement('div');
+ d.className='shopItem';
+ d.innerHTML='<span>'+bg.name+'</span>';
+ const b=document.createElement('button');
+ const owned=ownedBackgrounds.includes(bg.id);
+ b.textContent=owned?'Sotib olingan':bg.price+' 💰';
+ b.disabled=owned;
+ b.addEventListener('click',()=>buyBackground(bg));
+ d.appendChild(b);
+ shopItemsEl.appendChild(d);
+});
 }
 
 function closeShop(){shopEl.style.display='none';}
 
-// function buySeed(s){
-//  if(money<10) return alert('Pul yetarli emas');
-//  money-=10;
-//  inventory.push(JSON.parse(JSON.stringify(s)));
-//  updateUI();
-// }
 function buySeed(s){
- if(money < s.price) return alert('Pul yetarli emas');
- money -= s.price;
- inventory.push(JSON.parse(JSON.stringify(s)));
- updateUI();
+  if(money < s.price){
+    alert('Pul yetarli emas');
+    return;
+  }
+  money -= s.price;
+  inventory.push(JSON.parse(JSON.stringify(s)));
+  updateUI();
+  openShop(); // magazin qayta ochilib, tugmalar yangilanadi
 }
 
+function buyTool(t){
+  if(money < t.price){
+    alert('Pul yetarli emas');
+    return;
+  }
+  money -= t.price;
+  tools[t.type]++;
+  updateToolbar();
+  updateUI();
+  openShop(); // tugmalar yangilansin
+}
 
 function buyBackground(bg){
- if(money<bg.price) return alert('Pul yetarli emas');
- money-=bg.price;
- ownedBackgrounds.push(bg.id);
- document.body.style.background=bg.color;
- openShop();
- updateUI();
+  if(money < bg.price){
+    alert('Pul yetarli emas');
+    return;
+  }
+  money -= bg.price;
+  ownedBackgrounds.push(bg.id);
+  document.body.style.background=bg.color;
+  updateUI();
+  openShop();
 }
+
+/* ===== TOOL BUTTONS ===== */
+useHoeBtn.addEventListener('click',()=>{
+ if(tools.hoe>0){
+   selectedSeed={effect:'hoe'};
+ } else alert('Belkurak yo‘q!');
+});
+useFertilizerBtn.addEventListener('click',()=>{
+ if(tools.fertilizer>0){
+   selectedSeed={effect:'fertilize'};
+ } else alert('O‘g‘it yo‘q!');
+});
 
 /* ===== START ===== */
 initSoil();
@@ -303,3 +402,4 @@ newTask();
 </script>
 </body>
 </html>
+
