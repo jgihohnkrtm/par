@@ -314,7 +314,7 @@ function openShop(){
 const h2 = document.createElement('h4');
 h2.textContent='🛠 Vositalar';
 shopItemsEl.appendChild(h2);
-[ {name:'🪏 Belkurak',type:'hoe',price:10},{name:'🧪 O‘g‘it',type:'fertilizer',price:20}].forEach(t=>{
+[ {name:'🪏 Belkurak',type:'hoe',price:100},{name:'🧪 O‘g‘it',type:'fertilizer',price:50}].forEach(t=>{
  const d=document.createElement('div');
  d.className='shopItem';
  d.innerHTML='<span>'+t.name+'</span>';
@@ -403,6 +403,7 @@ newTask();
 </script>
 </body>
 </html>
+
 
 
 
